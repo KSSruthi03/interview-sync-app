@@ -1,5 +1,6 @@
 import User from "../models/UserModel.js";
 import Room from "../models/RoomModel.js";
+import sendEmail from "../utils/sendEmail.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { data } from "react-router-dom";
@@ -23,11 +24,13 @@ export const register = async (req, res) => {
       password: hashedPassword,
     });
 
-    res.json({ message: "User registered successfully", data: {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-  }, });
+    res.json({
+      message: "User registered successfully", data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -44,8 +47,8 @@ export const login = async (req, res) => {
 
     // const user = await User.findOne({ email });
     const user = await User.findOne({
-    email: email.toLowerCase().trim(),
-});
+      email: email.toLowerCase().trim(),
+    });
     console.log("user: ", user); // Log the found user
     if (!user) return res.status(400).json({ message: "User not found" });
 
@@ -94,28 +97,40 @@ export const getUserInfo = async (req, res) => {
 
 
 
-//*******************4.ROOM CONTROLLER************************/
+//*******************4.ROOM CREATE************************/
 
 export const createRoom = async (req, res) => {
   try {
 
     const roomId = Math.random().toString(36).substring(2, 8);
-
+    const { candidateEmail } = req.body;
+    const joinLink = `http://localhost:3000/join/${roomId}`;
     const room = await Room.create({
       roomId,
       host: req.user.userId,
       participants: [req.user.userId],
     });
 
-    res.status(201).json({
-      message: "Room created successfully",
-      room,
+    // send email
+    await sendEmail({
+      to: candidateEmail,
+      subject: "Interview Invitation",
+      text: `You have been invited to an interview.
+             Join using this link:${joinLink}`
     });
 
-  } catch (err) {
+    res.status(201).json({
+      message: "Room created! Interview invitation sent successfully",
+      joinLink: "http://localhost:3000/join/abc123",
+      room,
+    });
+  }
+  catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+
+
 
 
 //********************5. JOIN ROOM CONTROLLER************************ */
@@ -134,12 +149,23 @@ export const joinRoom = async (req, res) => {
         message: "Room not found"
       });
 
-  }
-   // add user to participants
-    room.participants.push(req.user.userId);
+    }
 
-    // save updated room
-    await room.save();
+
+    // Add user to participants only if user is not already in the room
+    await Room.findOneAndUpdate(
+
+      { roomId },
+
+      {
+        $addToSet: {
+          participants: req.user.userId
+        }
+      },
+
+      { new: true }
+
+    );
 
     // response
     res.json({
@@ -153,4 +179,4 @@ export const joinRoom = async (req, res) => {
       message: err.message
     });
   }
-  }
+}
