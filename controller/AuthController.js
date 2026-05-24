@@ -102,6 +102,22 @@ export const getUserInfo = async (req, res) => {
 export const createRoom = async (req, res) => {
   try {
 
+    // get logged-in user
+    const user = await User.findById(req.user.userId);
+
+    // only admin can create rooms-RBAC for admin room creation
+    if (user.email !== process.env.ADMIN_EMAIL) {
+
+      return res.status(403).json({
+
+        success: false,
+
+        message: "Only admin can create interview rooms"
+
+      });
+
+    }
+    //generate random room ID
     const roomId = Math.random().toString(36).substring(2, 8);
     const { candidateEmail } = req.body;
     const joinLink = `http://localhost:3000/join/${roomId}`;
@@ -138,7 +154,6 @@ export const joinRoom = async (req, res) => {
   try {
     // roomId sent from frontend
     const { roomId } = req.body;
-
     // find room in DB
     const room = await Room.findOne({ roomId });
 
@@ -154,10 +169,8 @@ export const joinRoom = async (req, res) => {
 
     // Add user to participants only if user is not already in the room
     await Room.findOneAndUpdate(
-
-      { roomId },
-
-      {
+     { roomId },
+  {
         $addToSet: {
           participants: req.user.userId
         }
